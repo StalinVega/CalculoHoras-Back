@@ -1,0 +1,70 @@
+CREATE TABLE usuarios (
+    id BIGSERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    apellido VARCHAR(100) NOT NULL,
+    cedula VARCHAR(20) UNIQUE NOT NULL,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    rol VARCHAR(20) NOT NULL CHECK (rol IN ('TECNICO', 'ADMIN')),
+    activo BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+CREATE TABLE feriados (
+    id BIGSERIAL PRIMARY KEY,
+    fecha DATE UNIQUE NOT NULL,
+    descripcion VARCHAR(150)
+);
+
+CREATE TABLE asistencias (
+    id BIGSERIAL PRIMARY KEY,
+    usuario_id BIGINT NOT NULL,
+
+    fecha_inicio DATE NOT NULL,
+    hora_inicio TIME NOT NULL,
+
+    fecha_fin DATE,
+    hora_fin TIME,
+
+    foto_inicio_url TEXT,
+    lat_inicio DECIMAL(10,8),
+    lng_inicio DECIMAL(11,8),
+
+    foto_fin_url TEXT,
+    lat_fin DECIMAL(10,8),
+    lng_fin DECIMAL(11,8),
+
+    estado VARCHAR(20) DEFAULT 'ABIERTO'
+        CHECK (estado IN ('ABIERTO','CERRADO')),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+
+    CONSTRAINT fk_usuario
+        FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE
+);
+
+CREATE TABLE horas_calculadas (
+    id BIGSERIAL PRIMARY KEY,
+    usuario_id BIGINT NOT NULL,
+    fecha DATE NOT NULL,
+
+    horas_normales DECIMAL(5,2) DEFAULT 0,
+    horas_25 DECIMAL(5,2) DEFAULT 0,
+    horas_100 DECIMAL(5,2) DEFAULT 0,
+    horas_extras DECIMAL(5,2) DEFAULT 0,
+
+    total_ajustado DECIMAL(6,2) DEFAULT 0,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+
+    CONSTRAINT fk_usuario_horas
+        FOREIGN KEY (usuario_id)
+        REFERENCES usuarios(id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_asistencias_usuario ON asistencias(usuario_id);
+CREATE INDEX idx_asistencias_fecha_inicio ON asistencias(fecha_inicio);
+CREATE INDEX idx_horas_usuario_fecha ON horas_calculadas(usuario_id, fecha);
