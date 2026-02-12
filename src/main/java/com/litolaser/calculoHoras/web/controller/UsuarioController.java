@@ -1,11 +1,14 @@
 package com.litolaser.calculoHoras.web.controller;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.litolaser.calculoHoras.application.Dto.UsuarioRequestDto;
 import com.litolaser.calculoHoras.application.Dto.UsuarioResponseDTO;
 import com.litolaser.calculoHoras.application.Services.UsuarioService;
+import com.litolaser.calculoHoras.infraestructure.persistence.entity.UsuarioEntity;
 
 import java.util.List;
 
@@ -42,4 +45,13 @@ public class UsuarioController {
     public void eliminar(@PathVariable Long id) {
         service.eliminar(id);
     }
+
+    @PutMapping("/{id}/estado")
+    public ResponseEntity<UsuarioEntity> cambiarEstado(
+            @PathVariable Long id,
+            @RequestParam Boolean activo) {
+
+        return ResponseEntity.ok(service.cambiarEstado(id, activo));
+    }
+
 }

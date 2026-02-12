@@ -1,6 +1,8 @@
 package com.litolaser.calculoHoras.application.Services;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.litolaser.calculoHoras.application.Dto.UsuarioRequestDto;
@@ -16,6 +18,7 @@ import java.util.stream.Collectors;
 public class UsuarioService {
 
     private final UsuarioJpaRepository repository;
+    private final PasswordEncoder passwordEncoder;
 
     // CREATE
     public UsuarioResponseDTO crearUsuario(UsuarioRequestDto request) {
@@ -33,7 +36,7 @@ public class UsuarioService {
                 .apellido(request.getApellido())
                 .cedula(request.getCedula())
                 .email(request.getEmail())
-                .passwordHash(request.getPassword()) // luego lo encriptamos 🔐
+               .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .rol(request.getRol())
                 .activo(true)
                 .build();
@@ -79,6 +82,14 @@ public class UsuarioService {
         usuario.setActivo(false);
         repository.save(usuario);
     }
+    public UsuarioEntity cambiarEstado(Long id, Boolean activo) {
+    UsuarioEntity usuario = repository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+    usuario.setActivo(activo);
+    return repository.save(usuario);
+}
+
 
     private UsuarioResponseDTO mapToResponse(UsuarioEntity usuario) {
         return UsuarioResponseDTO.builder()
