@@ -33,8 +33,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
-            FilterChain filterChain
-    ) throws ServletException, IOException {
+            FilterChain filterChain) throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+
+        if (path.contains("/swagger-ui") ||
+                path.contains("/v3/api-docs")) {
+
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         final String authHeader = request.getHeader("Authorization");
 
@@ -57,12 +65,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (usuario != null && usuario.getActivo()) {
 
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            usuario,
-                            null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + usuario.getRol()))
-                    );
+            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                    usuario,
+                    null,
+                    List.of(new SimpleGrantedAuthority("ROLE_" + usuario.getRol())));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }

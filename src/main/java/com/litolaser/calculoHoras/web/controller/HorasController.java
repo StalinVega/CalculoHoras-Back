@@ -14,8 +14,13 @@ import com.litolaser.calculoHoras.application.Services.HorasService;
 import com.litolaser.calculoHoras.infraestructure.persistence.entity.HorasCalculadasEntity;
 import com.litolaser.calculoHoras.shared.response.ApiResponse;
 
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
+@Tag(name = "Horas", description = "Operaciones relacionadas al cálculo de horas")
 @RestController
 @RequestMapping("/api/horas")
 @RequiredArgsConstructor
@@ -36,11 +41,22 @@ public class HorasController {
                 ApiResponse.success("Horas calculadas correctamente"));
     }
 
+
+    @Operation(summary = "Obtener informe semanal", description = "Devuelve el listado de horas calculadas por usuario, año y mes")
+     @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Informe generado correctamente"
+            )
+    })
     @PreAuthorize("hasAnyRole('ADMIN','TECNICO')")
     @GetMapping("/informe-semanal")
     public ResponseEntity<ApiResponse<List<HorasCalculadasEntity>>> informe(
+            @Parameter(description = "ID del usuario", example = "1") 
             @RequestParam Long usuarioId,
+            @Parameter(description = "Año del informe", example = "2025")
             @RequestParam int anio,
+            @Parameter(description = "Mes del informe", example = "5")
             @RequestParam int mes) {
 
         return ResponseEntity.ok(

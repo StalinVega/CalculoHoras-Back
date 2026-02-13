@@ -27,11 +27,11 @@ public class GlobalExceptionHandler {
     }
 
     // 🔹 Error general
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Object>> handleGeneralException(Exception ex) {
+    // @ExceptionHandler(Exception.class)
+    // public ResponseEntity<ApiResponse<Object>> handleGeneralException(Exception ex) {
 
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Error interno del servidor"));
-    }
+    //     return ResponseEntity
+    //             .status(HttpStatus.INTERNAL_SERVER_ERROR)
+    //             .body(ApiResponse.error("Error interno del servidor"));
+    // }
 }
