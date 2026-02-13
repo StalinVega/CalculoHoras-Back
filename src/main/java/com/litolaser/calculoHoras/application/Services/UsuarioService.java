@@ -75,12 +75,12 @@ public class UsuarioService {
     }
 
     // DELETE (soft delete recomendado)
-    public void eliminar(Long id) {
+    public UsuarioResponseDTO eliminar(Long id) {
         UsuarioEntity usuario = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
         usuario.setActivo(false);
-        repository.save(usuario);
+        return mapToResponse(repository.save(usuario));
     }
     public UsuarioResponseDTO cambiarEstado(Long id, Boolean activo) {
     UsuarioEntity usuario = repository.findById(id)

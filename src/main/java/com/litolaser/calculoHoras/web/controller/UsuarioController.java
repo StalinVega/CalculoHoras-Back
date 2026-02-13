@@ -64,8 +64,9 @@ public class UsuarioController {
     }
 
     @DeleteMapping("/{id}")
-    public void eliminar(@PathVariable Long id) {
-        service.eliminar(id);
+    public ResponseEntity<ApiResponse<UsuarioResponseDTO>> eliminar(@PathVariable Long id) {
+        UsuarioResponseDTO usuario =service.eliminar(id);
+        return ResponseEntity.ok(ApiResponse.success(null, "Usuario eliminado correctamente"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
