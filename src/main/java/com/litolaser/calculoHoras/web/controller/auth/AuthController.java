@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import com.litolaser.calculoHoras.application.Services.auth.AuthService;
 import com.litolaser.calculoHoras.domain.auth.dto.LoginRequest;
 import com.litolaser.calculoHoras.domain.auth.dto.LoginResponse;
+import com.litolaser.calculoHoras.shared.response.ApiResponse;
 
 @RestController
 @RequestMapping("/auth")
@@ -16,7 +17,12 @@ public class AuthController {
     private final AuthService service;
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
-        return ResponseEntity.ok(service.login(request));
-    }
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody LoginRequest request) {
+
+    LoginResponse response = service.login(request);
+
+    return ResponseEntity.ok(
+            ApiResponse.success(response, "Login exitoso")
+    );
+}
 }

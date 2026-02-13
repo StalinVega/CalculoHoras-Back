@@ -82,12 +82,12 @@ public class UsuarioService {
         usuario.setActivo(false);
         repository.save(usuario);
     }
-    public UsuarioEntity cambiarEstado(Long id, Boolean activo) {
+    public UsuarioResponseDTO cambiarEstado(Long id, Boolean activo) {
     UsuarioEntity usuario = repository.findById(id)
             .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
     usuario.setActivo(activo);
-    return repository.save(usuario);
+    return mapToResponse(repository.save(usuario));
 }
 
 
