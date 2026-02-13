@@ -30,11 +30,13 @@ public class AuthService {
         if (!passwordEncoder.matches(request.getPassword(), usuario.getPasswordHash())) {
             throw new RuntimeException("Credenciales inválidas");
         }
+        if (!usuario.getActivo()) {
+            throw new RuntimeException("El usuario está inactivo");
+        }
 
         String token = jwtService.generateToken(
                 usuario.getEmail(),
-                usuario.getRol()
-        );
+                usuario.getRol());
 
         return new LoginResponse(token);
     }
