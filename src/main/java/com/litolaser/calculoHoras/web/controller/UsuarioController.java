@@ -32,7 +32,7 @@ public class UsuarioController {
                 .body(ApiResponse.success(usuario, "Usuario creado correctamente"));
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN','TECNICO')")
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<ApiResponse<List<UsuarioResponseDTO>>> listar() {
 
@@ -42,6 +42,7 @@ public class UsuarioController {
                 ApiResponse.success(lista, "Usuarios obtenidos correctamente"));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TECNICO')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<UsuarioResponseDTO>> obtener(
             @PathVariable Long id) {
@@ -52,6 +53,7 @@ public class UsuarioController {
                 ApiResponse.success(usuario, "Usuario obtenido correctamente"));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<UsuarioResponseDTO>> actualizar(
             @PathVariable Long id,
@@ -63,10 +65,11 @@ public class UsuarioController {
                 ApiResponse.success(usuario, "Usuario actualizado correctamente"));
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<UsuarioResponseDTO>> eliminar(@PathVariable Long id) {
-        UsuarioResponseDTO usuario =service.eliminar(id);
-        return ResponseEntity.ok(ApiResponse.success(null, "Usuario eliminado correctamente"));
+        UsuarioResponseDTO usuario = service.eliminar(id);
+        return ResponseEntity.ok(ApiResponse.success(usuario, "Usuario eliminado correctamente"));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -80,5 +83,6 @@ public class UsuarioController {
         return ResponseEntity.ok(
                 ApiResponse.success(usuario, "Estado actualizado correctamente"));
     }
+
 
 }
