@@ -10,7 +10,7 @@ import com.litolaser.calculoHoras.domain.auth.dto.LoginResponse;
 import com.litolaser.calculoHoras.shared.response.ApiResponse;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
