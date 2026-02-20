@@ -26,43 +26,36 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class HorasController {
 
-    private final HorasService service;
+        private final HorasService service;
 
-    @PreAuthorize("hasAnyRole('ADMIN','TECNICO')")
-    @PostMapping("/calcular/mes")
-    public ResponseEntity<ApiResponse<String>> calcularMes(
-            @RequestParam Long usuarioId,
-            @RequestParam int anio,
-            @RequestParam int mes) {
+        @PreAuthorize("hasAnyRole('ADMIN','TECNICO')")
+        @GetMapping("/calcular/mes")
+        public ResponseEntity<ApiResponse<String>> calcularMes(
+                        @RequestParam Long usuarioId,
+                        @RequestParam int anio,
+                        @RequestParam int mes) {
 
-        service.calcularMes(usuarioId, anio, mes);
+                service.calcularMes(usuarioId, anio, mes);
 
-        return ResponseEntity.ok(
-                ApiResponse.success("Horas calculadas correctamente"));
-    }
+                return ResponseEntity.ok(
+                                ApiResponse.success("Horas calculadas correctamente"));
+        }
 
+        @Operation(summary = "Obtener informe semanal", description = "Devuelve el listado de horas calculadas por usuario, año y mes")
+        @ApiResponses(value = {
+                        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Informe generado correctamente")
+        })
+        @PreAuthorize("hasAnyRole('ADMIN','TECNICO')")
+        @GetMapping("/informe-semanal")
+        public ResponseEntity<ApiResponse<List<HorasCalculadasEntity>>> informe(
+                        @Parameter(description = "ID del usuario", example = "1") @RequestParam Long usuarioId,
+                        @Parameter(description = "Año del informe", example = "2025") @RequestParam int anio,
+                        @Parameter(description = "Mes del informe", example = "5") @RequestParam int mes) {
 
-    @Operation(summary = "Obtener informe semanal", description = "Devuelve el listado de horas calculadas por usuario, año y mes")
-     @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(
-                    responseCode = "200",
-                    description = "Informe generado correctamente"
-            )
-    })
-    @PreAuthorize("hasAnyRole('ADMIN','TECNICO')")
-    @GetMapping("/informe-semanal")
-    public ResponseEntity<ApiResponse<List<HorasCalculadasEntity>>> informe(
-            @Parameter(description = "ID del usuario", example = "1") 
-            @RequestParam Long usuarioId,
-            @Parameter(description = "Año del informe", example = "2025")
-            @RequestParam int anio,
-            @Parameter(description = "Mes del informe", example = "5")
-            @RequestParam int mes) {
+                return ResponseEntity.ok(
+                                ApiResponse.success(
+                                                service.informeSemanal(usuarioId, anio, mes),
+                                                "Informe semanal generado correctamente"));
 
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        service.informeSemanal(usuarioId, anio, mes),
-                        "Informe semanal generado correctamente"));
-
-    }
+        }
 }

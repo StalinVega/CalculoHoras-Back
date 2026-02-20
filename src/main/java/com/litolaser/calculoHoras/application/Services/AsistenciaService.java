@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import com.litolaser.calculoHoras.application.Dto.AsistenciaFinRequestDto;
 import com.litolaser.calculoHoras.application.Dto.AsistenciaInicioRequestDto;
 import com.litolaser.calculoHoras.application.Dto.AsistenciaResponseDto;
+import com.litolaser.calculoHoras.application.Dto.EntradaActivaResponseDto;
 import com.litolaser.calculoHoras.infraestructure.persistence.entity.AsistenciaEntity;
 import com.litolaser.calculoHoras.infraestructure.persistence.entity.UsuarioEntity;
 import com.litolaser.calculoHoras.infraestructure.persistence.repository.AsistenciaRepository;
@@ -82,5 +83,13 @@ public class AsistenciaService {
                 .horaFin(asistencia.getHoraFin())
                 .estado(asistencia.getEstado())
                 .build();
+    }
+
+    public EntradaActivaResponseDto validarEntradaActiva(Long usuarioId) {
+
+        boolean existe = asistenciaRepository
+                .existsByUsuarioIdAndHoraFinIsNull(usuarioId);
+
+        return new EntradaActivaResponseDto(existe);
     }
 }

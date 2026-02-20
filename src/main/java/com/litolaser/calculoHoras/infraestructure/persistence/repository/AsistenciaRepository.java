@@ -12,12 +12,13 @@ import com.litolaser.calculoHoras.infraestructure.persistence.entity.UsuarioEnti
 public interface AsistenciaRepository extends JpaRepository<AsistenciaEntity, Long> {
 
     Optional<AsistenciaEntity> findByUsuarioAndEstado(UsuarioEntity usuario, String estado);
-    List<AsistenciaEntity> findByUsuarioAndFechaInicioBetweenAndEstado(
-        UsuarioEntity usuario,
-        LocalDate desde,
-        LocalDate hasta,
-        String estado
-);
 
+    List<AsistenciaEntity> findByUsuarioAndFechaInicioBetweenAndEstado(
+            UsuarioEntity usuario,
+            LocalDate desde,
+            LocalDate hasta,
+            String estado);
+
+    boolean existsByUsuarioIdAndHoraFinIsNull(Long usuarioId);
 
 }
