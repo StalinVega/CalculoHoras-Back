@@ -29,8 +29,8 @@ public class MotorCalculoHoras {
         BigDecimal extras8h = BigDecimal.ZERO;
 
         Duration duracion = Duration.between(inicio, fin);
-        BigDecimal horasTotales = BigDecimal.valueOf(duracion.toMinutes())
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
+        BigDecimal horasTotales = BigDecimal.valueOf(duracion.getSeconds())
+        .divide(BigDecimal.valueOf(3600), 4, RoundingMode.HALF_UP);
 
         LocalDate fecha = inicio.toLocalDate();
         DayOfWeek dia = fecha.getDayOfWeek();
