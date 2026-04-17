@@ -1,70 +1,550 @@
-CREATE TABLE usuarios (
-    id BIGSERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    apellido VARCHAR(100) NOT NULL,
-    cedula VARCHAR(20) UNIQUE NOT NULL,
-    email VARCHAR(150) UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    rol VARCHAR(20) NOT NULL CHECK (rol IN ('TECNICO', 'ADMIN')),
-    activo BOOLEAN DEFAULT TRUE NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+-- ==========================================================
+-- SCRIPT COMPLETO DE BASE DE DATOS PARA FACTURACIÓN ECUADOR
+-- VERSIÓN UNIFICADA
+-- ==========================================================
+
+-- 1. ELIMINAR TABLAS EN ORDEN (OPCIONAL - SOLO PARA LIMPIEZA)
+-- DROP TABLE IF EXISTS evento_outbox, comprobante_xml, comprobante_pago, comprobante_detalle_impuesto, comprobante_detalle, comprobante, producto, cliente, secuencial_comprobante, punto_emision, establecimiento, empresa, sri_config, impuesto, sri_forma_pago, tipo_identificacion, tipo_comprobante, tipo_emision, tipo_ambiente;
+
+-- ==========================================================
+-- 2. TABLAS DE CATÁLOGOS (MAESTRAS)
+-- ==========================================================
+
+CREATE TABLE tipo_ambiente (
+    id SERIAL PRIMARY KEY,
+    codigo CHAR(1) NOT NULL UNIQUE,
+    nombre VARCHAR(20) NOT NULL
 );
 
-CREATE TABLE feriados (
-    id BIGSERIAL PRIMARY KEY,
-    fecha DATE UNIQUE NOT NULL,
-    descripcion VARCHAR(150)
+CREATE TABLE tipo_emision (
+    id SERIAL PRIMARY KEY,
+    codigo CHAR(1) NOT NULL UNIQUE,
+    nombre VARCHAR(20)
 );
 
-CREATE TABLE asistencias (
-    id BIGSERIAL PRIMARY KEY,
-    usuario_id BIGINT NOT NULL,
-
-    fecha_inicio DATE NOT NULL,
-    hora_inicio TIME NOT NULL,
-
-    fecha_fin DATE,
-    hora_fin TIME,
-
-    foto_inicio_url TEXT,
-    lat_inicio DECIMAL(10,8),
-    lng_inicio DECIMAL(11,8),
-
-    foto_fin_url TEXT,
-    lat_fin DECIMAL(10,8),
-    lng_fin DECIMAL(11,8),
-
-    estado VARCHAR(20) DEFAULT 'ABIERTO'
-        CHECK (estado IN ('ABIERTO','CERRADO')),
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-
-    CONSTRAINT fk_usuario
-        FOREIGN KEY (usuario_id)
-        REFERENCES usuarios(id)
-        ON DELETE CASCADE
+CREATE TABLE tipo_comprobante (
+    id SERIAL PRIMARY KEY,
+    codigo_sri VARCHAR(2) NOT NULL UNIQUE,
+    nombre VARCHAR(50) NOT NULL,
+    activo BOOLEAN DEFAULT TRUE
 );
 
-CREATE TABLE horas_calculadas (
-    id BIGSERIAL PRIMARY KEY,
-    usuario_id BIGINT NOT NULL,
-    fecha DATE NOT NULL,
-
-    horas_normales DECIMAL(5,2) DEFAULT 0,
-    horas_25 DECIMAL(5,2) DEFAULT 0,
-    horas_100 DECIMAL(5,2) DEFAULT 0,
-    horas_extras DECIMAL(5,2) DEFAULT 0,
-
-    total_ajustado DECIMAL(6,2) DEFAULT 0,
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-
-    CONSTRAINT fk_usuario_horas
-        FOREIGN KEY (usuario_id)
-        REFERENCES usuarios(id)
-        ON DELETE CASCADE
+CREATE TABLE tipo_identificacion (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(2) NOT NULL UNIQUE,
+    nombre VARCHAR(50) NOT NULL
 );
 
-CREATE INDEX idx_asistencias_usuario ON asistencias(usuario_id);
-CREATE INDEX idx_asistencias_fecha_inicio ON asistencias(fecha_inicio);
-CREATE INDEX idx_horas_usuario_fecha ON horas_calculadas(usuario_id, fecha);
+CREATE TABLE sri_forma_pago (
+    id SERIAL PRIMARY KEY,
+    codigo_sri VARCHAR(5) NOT NULL UNIQUE,
+    nombre VARCHAR(100) NOT NULL
+);
+
+-- Tabla de impuestos detallada (mejora del Script 2)
+CREATE TABLE impuesto (
+    id SERIAL PRIMARY KEY,
+    codigo VARCHAR(2) NOT NULL,
+    codigo_porcentaje VARCHAR(2) NOT NULL,
+    porcentaje NUMERIC(5,2) NOT NULL,
+    descripcion TEXT,
+    activo BOOLEAN DEFAULT TRUE,
+    UNIQUE(codigo, codigo_porcentaje)
+);
+
+-- Configuración SRI por ambiente (mejora del Script 2)
+CREATE TABLE sri_config (
+    ambiente_id INTEGER PRIMARY KEY REFERENCES tipo_ambiente(id),
+    url_recepcion TEXT NOT NULL,
+    url_autorizacion TEXT NOT NULL,
+    url_recepcion_masiva TEXT,
+    version VARCHAR(10) DEFAULT '1.1.0'
+);
+
+-- ==========================================================
+-- 3. ESTRUCTURA DE LA EMPRESA
+-- ==========================================================
+
+CREATE TABLE empresa (
+    id SERIAL PRIMARY KEY,
+    ruc VARCHAR(13) UNIQUE NOT NULL,
+    razon_social VARCHAR(255) NOT NULL,
+    nombre_comercial VARCHAR(255),
+    direccion_matriz TEXT NOT NULL,
+    obligado_contabilidad BOOLEAN DEFAULT FALSE,
+    agente_retencion VARCHAR(20),
+    contribuyente_especial VARCHAR(20),
+    p12_ruta TEXT,
+    p12_clave TEXT,
+    ambiente_default_id INTEGER REFERENCES tipo_ambiente(id) DEFAULT 1,
+    creado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE establecimiento (
+    id SERIAL PRIMARY KEY,
+    empresa_id INTEGER NOT NULL REFERENCES empresa(id) ON DELETE CASCADE,
+    codigo VARCHAR(3) NOT NULL,
+    nombre_comercial TEXT,
+    direccion TEXT NOT NULL,
+    ambiente_id INTEGER REFERENCES tipo_ambiente(id),
+    usa_ambiente_emisor BOOLEAN DEFAULT TRUE,
+    activo BOOLEAN DEFAULT TRUE,
+    creado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(empresa_id, codigo)
+);
+
+CREATE TABLE punto_emision (
+    id SERIAL PRIMARY KEY,
+    establecimiento_id INTEGER NOT NULL REFERENCES establecimiento(id) ON DELETE CASCADE,
+    codigo VARCHAR(3) NOT NULL,
+    activo BOOLEAN DEFAULT TRUE,
+    creado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(establecimiento_id, codigo)
+);
+
+CREATE TABLE secuencial_comprobante (
+    id SERIAL PRIMARY KEY,
+    punto_emision_id INTEGER NOT NULL REFERENCES punto_emision(id) ON DELETE CASCADE,
+    tipo_comprobante_id INTEGER NOT NULL REFERENCES tipo_comprobante(id),
+    ultimo_valor INTEGER DEFAULT 0,
+    UNIQUE(punto_emision_id, tipo_comprobante_id)
+);
+
+-- ==========================================================
+-- 4. ENTIDADES COMERCIALES
+-- ==========================================================
+
+CREATE TABLE cliente (
+    id SERIAL PRIMARY KEY,
+    empresa_id INTEGER NOT NULL REFERENCES empresa(id) ON DELETE CASCADE,
+    tipo_identificacion_id INTEGER REFERENCES tipo_identificacion(id),
+    identificacion VARCHAR(20) NOT NULL,
+    razon_social VARCHAR(255) NOT NULL,
+    direccion TEXT,
+    email VARCHAR(255) NOT NULL,
+    telefono VARCHAR(20),
+    activo BOOLEAN DEFAULT TRUE,
+    creado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    actualizado_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(empresa_id, identificacion) -- LA CLAVE DEL SAAS
+);
+
+CREATE TABLE producto (
+    id SERIAL PRIMARY KEY,
+    empresa_id INTEGER REFERENCES empresa(id) ON DELETE CASCADE,
+    codigo_principal VARCHAR(50) NOT NULL,
+    codigo_auxiliar VARCHAR(50),
+    nombre TEXT NOT NULL,
+    precio_unitario NUMERIC(18,6) NOT NULL,
+    codigo_impuesto_sri VARCHAR(5) DEFAULT '2', -- IVA
+    codigo_porcentaje_sri VARCHAR(5) DEFAULT '2', -- 12% o 15%
+    tarifa_iva NUMERIC(5,2) DEFAULT 15.00,
+    ice_porcentaje NUMERIC(5,2) DEFAULT 0,
+    activo BOOLEAN DEFAULT TRUE,
+    UNIQUE(empresa_id, codigo_principal)
+);
+
+-- ==========================================================
+-- 5. TRANSACCIONAL (CORE DE FACTURACIÓN)
+-- ==========================================================
+
+CREATE TABLE comprobante (
+    id BIGSERIAL PRIMARY KEY,
+    empresa_id INTEGER NOT NULL REFERENCES empresa(id),
+    punto_emision_id INTEGER NOT NULL REFERENCES punto_emision(id),
+    cliente_id INTEGER NOT NULL REFERENCES cliente(id),
+    tipo_comprobante_id INTEGER NOT NULL REFERENCES tipo_comprobante(id),
+    
+    ambiente_id INTEGER NOT NULL REFERENCES tipo_ambiente(id),
+    emision_id INTEGER NOT NULL REFERENCES tipo_emision(id),
+    establecimiento_cod_snapshot VARCHAR(3) NOT NULL,
+    punto_emision_cod_snapshot VARCHAR(3) NOT NULL,
+    
+    secuencial VARCHAR(9) NOT NULL,
+    clave_acceso VARCHAR(49) UNIQUE,
+    fecha_emision TIMESTAMP NOT NULL,
+    
+    total_sin_impuestos NUMERIC(14,2) NOT NULL,
+    total_descuento NUMERIC(14,2) DEFAULT 0,
+    total_iva NUMERIC(14,2) NOT NULL,
+    total_ice NUMERIC(14,2) DEFAULT 0,
+    importe_total NUMERIC(14,2) NOT NULL,
+    
+    estado VARCHAR(20) NOT NULL DEFAULT 'CREADO',
+    estado_sri VARCHAR(20) DEFAULT 'PENDIENTE',
+    
+    origen_sistema VARCHAR(50),
+    origen_id VARCHAR(100),
+    
+    numero_autorizacion VARCHAR(49),
+    fecha_autorizacion TIMESTAMP,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(origen_sistema, origen_id)
+);
+
+CREATE TABLE comprobante_detalle (
+    id BIGSERIAL PRIMARY KEY,
+    comprobante_id BIGINT NOT NULL REFERENCES comprobante(id) ON DELETE CASCADE,
+    producto_id INTEGER REFERENCES producto(id),
+    descripcion TEXT NOT NULL,
+    cantidad NUMERIC(14,2) NOT NULL,
+    precio_unitario NUMERIC(18,6) NOT NULL,
+    descuento NUMERIC(14,2) DEFAULT 0,
+    subtotal NUMERIC(14,2) NOT NULL,
+    valor_iva NUMERIC(14,2) NOT NULL,
+    valor_ice NUMERIC(14,2) DEFAULT 0
+);
+
+-- Tabla de impuestos por detalle (mejora del Script 2)
+CREATE TABLE comprobante_detalle_impuesto (
+    id BIGSERIAL PRIMARY KEY,
+    detalle_id BIGINT NOT NULL REFERENCES comprobante_detalle(id) ON DELETE CASCADE,
+    impuesto_id INTEGER NOT NULL REFERENCES impuesto(id),
+    base_imponible NUMERIC(14,2) NOT NULL,
+    valor NUMERIC(14,2) NOT NULL,
+    codigo_porcentaje_sri VARCHAR(5),
+    tarifa NUMERIC(5,2)
+);
+
+CREATE TABLE comprobante_pago (
+    id BIGSERIAL PRIMARY KEY,
+    comprobante_id BIGINT NOT NULL REFERENCES comprobante(id) ON DELETE CASCADE,
+    forma_pago_id INTEGER REFERENCES sri_forma_pago(id),
+    valor NUMERIC(14,2) NOT NULL,
+    plazo INTEGER,
+    unidad_tiempo VARCHAR(10)
+);
+
+-- ==========================================================
+-- 6. GESTIÓN DE XML Y RESULTADOS SRI
+-- ==========================================================
+
+CREATE TABLE comprobante_xml (
+    id BIGSERIAL PRIMARY KEY,
+    comprobante_id BIGINT NOT NULL UNIQUE REFERENCES comprobante(id) ON DELETE CASCADE,
+    xml_generado TEXT,
+    xml_firmado TEXT,
+    xml_autorizado TEXT,
+    numero_autorizacion VARCHAR(49),
+    fecha_autorizacion TIMESTAMP,
+    mensajes_error JSONB,
+    estado VARCHAR(20) DEFAULT 'GENERADO',
+    fecha_generacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    fecha_envio TIMESTAMP,
+    fecha_autorizacion_sri TIMESTAMP,
+    intentos_envio INTEGER DEFAULT 0,
+    ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================================
+-- 7. EVENTOS PARA KAFKA (OUTBOX PATTERN)
+-- ==========================================================
+
+CREATE TABLE evento_outbox (
+    id BIGSERIAL PRIMARY KEY,
+    evento_tipo VARCHAR(50) NOT NULL,
+    agregado_id BIGINT,
+    agregado_tipo VARCHAR(50),
+    payload JSONB NOT NULL,
+    estado VARCHAR(20) DEFAULT 'PENDIENTE',
+    reintentos INTEGER DEFAULT 0,
+    error_mensaje TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    procesado_at TIMESTAMP
+);
+
+-- ==========================================================
+-- 8. AUDITORÍA (OPCIONAL - RECOMENDADO)
+-- ==========================================================
+
+CREATE TABLE auditoria_comprobante (
+    id BIGSERIAL PRIMARY KEY,
+    comprobante_id BIGINT NOT NULL REFERENCES comprobante(id),
+    accion VARCHAR(20) NOT NULL,
+    usuario VARCHAR(100),
+    ip_address INET,
+    datos_previos JSONB,
+    datos_nuevos JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================================
+-- 9. ÍNDICES PARA RENDIMIENTO
+-- ==========================================================
+
+-- Índices principales
+CREATE INDEX idx_comprobante_clave ON comprobante(clave_acceso);
+CREATE INDEX idx_comprobante_fecha ON comprobante(fecha_emision);
+CREATE INDEX idx_comprobante_estado ON comprobante(estado);
+CREATE INDEX idx_comprobante_estado_sri ON comprobante(estado_sri);
+CREATE INDEX idx_comprobante_cliente ON comprobante(cliente_id);
+CREATE INDEX idx_comprobante_empresa ON comprobante(empresa_id);
+CREATE INDEX idx_comprobante_secuencial ON comprobante(establecimiento_cod_snapshot, punto_emision_cod_snapshot, secuencial);
+
+-- Índices para detalles
+CREATE INDEX idx_detalle_comprobante ON comprobante_detalle(comprobante_id);
+CREATE INDEX idx_detalle_producto ON comprobante_detalle(producto_id);
+CREATE INDEX idx_detalle_impuesto ON comprobante_detalle_impuesto(detalle_id);
+
+-- Índices para outbox
+CREATE INDEX idx_outbox_estado ON evento_outbox(estado);
+CREATE INDEX idx_outbox_tipo ON evento_outbox(evento_tipo);
+CREATE INDEX idx_outbox_created ON evento_outbox(created_at);
+
+-- Índices para búsquedas frecuentes
+CREATE INDEX idx_cliente_identificacion ON cliente(identificacion);
+CREATE INDEX idx_producto_codigo ON producto(codigo_principal);
+CREATE INDEX idx_empresa_ruc ON empresa(ruc);
+
+-- Índices compuestos
+CREATE INDEX idx_comprobante_empresa_fecha ON comprobante(empresa_id, fecha_emision);
+CREATE INDEX idx_comprobante_estado_fecha ON comprobante(estado, fecha_emision);
+
+-- ==========================================================
+-- 10. CARGA DE DATOS INICIALES (SRI)
+-- ==========================================================
+
+-- Tipo Ambiente
+INSERT INTO tipo_ambiente (codigo, nombre) VALUES 
+('1', 'PRUEBAS'), 
+('2', 'PRODUCCION');
+
+-- Tipo Emisión
+INSERT INTO tipo_emision (codigo, nombre) VALUES 
+('1', 'NORMAL');
+
+-- Tipo Comprobante
+INSERT INTO tipo_comprobante (codigo_sri, nombre) VALUES 
+('01', 'FACTURA'), 
+('04', 'NOTA DE CREDITO'),
+('07', 'COMPROBANTE DE RETENCION');
+
+-- Tipo Identificación
+INSERT INTO tipo_identificacion (codigo, nombre) VALUES 
+('04', 'RUC'), 
+('05', 'CEDULA'), 
+('06', 'PASAPORTE'), 
+('07', 'CONSUMIDOR FINAL');
+
+-- Formas de Pago SRI
+INSERT INTO sri_forma_pago (codigo_sri, nombre) VALUES 
+('01', 'SIN UTILIZACION DEL SISTEMA FINANCIERO'), 
+('15', 'COMPENSACIÓN DE DEUDAS'),
+('16', 'TARJETA DE DEBITO'), 
+('17', 'DINERO ELECTRÓNICO'),
+('18', 'TARJETA PREPAGO'),
+('19', 'TARJETA DE CREDITO'), 
+('20', 'OTROS CON UTILIZACION DEL SISTEMA FINANCIERO');
+
+-- Impuestos (mejora del Script 2)
+INSERT INTO impuesto (codigo, codigo_porcentaje, porcentaje, descripcion) VALUES 
+('2', '0', 0.00, 'IVA 0%'),
+('2', '2', 12.00, 'IVA 12%'),
+('2', '3', 14.00, 'IVA 14%'),
+('2', '4', 15.00, 'IVA 15%'),
+('3', '0', 0.00, 'ICE 0%'),
+('3', '1', 10.00, 'ICE 10%'),
+('3', '2', 20.00, 'ICE 20%');
+
+-- Configuración SRI por ambiente (mejora del Script 2)
+INSERT INTO sri_config (ambiente_id, url_recepcion, url_autorizacion, url_recepcion_masiva) VALUES 
+(1, 'https://celcer.sri.gob.ec/comprobanteselectronicosws/RecepcionComprobantesOffline?wsdl', 
+ 'https://celcer.sri.gob.ec/comprobanteselectronicosws/AutorizacionComprobantesOffline?wsdl',
+ 'https://celcer.sri.gob.ec/comprobanteselectronicosws/RecepcionComprobantesOffline?wsdl'),
+(2, 'https://cel.sri.gob.ec/comprobanteselectronicosws/RecepcionComprobantesOffline?wsdl', 
+ 'https://cel.sri.gob.ec/comprobanteselectronicosws/AutorizacionComprobantesOffline?wsdl',
+ 'https://cel.sri.gob.ec/comprobanteselectronicosws/RecepcionComprobantesOffline?wsdl');
+
+-- ==========================================================
+-- 11. FUNCIONES Y TRIGGERS (OPCIONALES)
+-- ==========================================================
+
+-- =========================================
+-- FUNCIONES Y TRIGGERS CORREGIDOS
+-- =========================================
+
+-- Función para tablas con "updated_at" (comprobante)
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Función para tablas con "actualizado_at" (empresa, cliente)
+CREATE OR REPLACE FUNCTION update_actualizado_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.actualizado_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =========================================
+-- TRIGGERS
+-- =========================================
+
+-- Trigger para comprobante
+DROP TRIGGER IF EXISTS update_comprobante_updated_at ON comprobante;
+
+CREATE TRIGGER update_comprobante_updated_at 
+    BEFORE UPDATE ON comprobante 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Trigger para empresa
+DROP TRIGGER IF EXISTS update_empresa_updated_at ON empresa;
+
+CREATE TRIGGER update_empresa_updated_at 
+    BEFORE UPDATE ON empresa 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_actualizado_at_column();
+
+-- Trigger para cliente
+DROP TRIGGER IF EXISTS update_cliente_updated_at ON cliente;
+
+CREATE TRIGGER update_cliente_updated_at 
+    BEFORE UPDATE ON cliente 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_actualizado_at_column();
+
+-- ==========================================================
+-- 12. COMENTARIOS DE TABLAS (DOCUMENTACIÓN)
+-- ==========================================================
+
+COMMENT ON DATABASE facturacion_ecuador IS 'Base de datos para facturación electrónica de Ecuador conforme a SRI';
+
+COMMENT ON TABLE comprobante IS 'Cabecera de comprobantes electrónicos (facturas, notas de crédito, retenciones)';
+COMMENT ON COLUMN comprobante.clave_acceso IS 'Clave de acceso de 49 dígitos generada según algoritmo SRI';
+COMMENT ON COLUMN comprobante.estado_sri IS 'Estado devuelto por SRI: PENDIENTE, AUTORIZADO, RECHAZADO, EN_PROCESO';
+COMMENT ON COLUMN impuesto.codigo IS 'Código de impuesto SRI: 2=IVA, 3=ICE, 5=IRBPNR';
+COMMENT ON COLUMN impuesto.codigo_porcentaje IS 'Código del porcentaje según catálogo SRI';
+
+-- ACTUALIZACIONES PARA EL MULTITENANT PARA QUE EL CLIETNE SALGA EXPLUSIVAMENTE PARA LA EMPRESA EN DONDE SE REGISTRO
+
+-- ==========================================================
+-- ACTUALIZACIÓN PARA MULTI-TENANCY (SAAS) EN TABLA CLIENTE
+-- ==========================================================
+
+-- 1. Eliminamos la restricción de unicidad global en la identificación
+-- (Postgres suele ponerle el nombre 'cliente_identificacion_key' por defecto)
+ALTER TABLE cliente DROP CONSTRAINT IF EXISTS cliente_identificacion_key;
+
+-- 2. Agregamos la columna empresa_id para "anclar" el cliente a una empresa
+-- Si ya tienes datos, podrías necesitar quitar el NOT NULL primero, pero asumiendo que está vacío:
+ALTER TABLE cliente ADD COLUMN empresa_id INTEGER NOT NULL REFERENCES empresa(id) ON DELETE CASCADE;
+
+-- 3. Creamos la nueva restricción: La identificación es única SOLO dentro de la misma empresa
+ALTER TABLE cliente ADD CONSTRAINT uq_cliente_empresa_identificacion UNIQUE(empresa_id, identificacion);
+
+-- 4. Actualizamos el índice de rendimiento para que use la nueva lógica
+DROP INDEX IF EXISTS idx_cliente_identificacion;
+CREATE INDEX idx_cliente_empresa_identificacion ON cliente(empresa_id, identificacion);
+
+-- 5. (Opcional) Actualizamos el comentario para que el equipo sepa la regla
+COMMENT ON COLUMN cliente.identificacion IS 'Identificación del cliente, única por cada empresa (inquilino)';
+
+
+-- GENERAMOS LA CLAVE DE ACCESO Y EL DIGITO DIGITADOR CON FUNCIONE SY trigger
+-- ==========================================================
+-- 13. AUTOMATIZACIÓN DE CLAVE DE ACCESO (SRI ECUADOR)
+-- ==========================================================
+
+-- 1. Función para calcular el Dígito Verificador (Módulo 11)
+-- Requerido por el SRI para el último dígito de la clave de acceso
+CREATE OR REPLACE FUNCTION calcular_digito_verificador(clave_48 TEXT)
+RETURNS CHAR(1) AS $$
+DECLARE
+    suma INTEGER := 0;
+    factor INTEGER := 2;
+    i INTEGER;
+    digito INTEGER;
+BEGIN
+    FOR i IN REVERSE length(clave_48)..1 LOOP
+        suma := suma + (CAST(substring(clave_48 FROM i FOR 1) AS INTEGER) * factor);
+        factor := factor + 1;
+        IF factor > 7 THEN factor := 2; END IF;
+    END LOOP;
+    
+    digito := 11 - (suma % 11);
+    
+    IF digito = 11 THEN RETURN '0';
+    ELSIF digito = 10 THEN RETURN '1';
+    ELSE RETURN CAST(digito AS CHAR(1));
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 2. Función que arma la estructura de la clave de 49 dígitos
+CREATE OR REPLACE FUNCTION generar_clave_acceso_sri(
+    fecha TIMESTAMP,
+    tipo_comp VARCHAR,
+    ruc_empresa VARCHAR,
+    ambiente VARCHAR,
+    serie VARCHAR,
+    secuencial VARCHAR,
+    tipo_emision VARCHAR
+) RETURNS VARCHAR(49) AS $$
+DECLARE
+    clave_48 VARCHAR(48);
+    codigo_num VARCHAR(8);
+BEGIN
+    -- El código numérico por estándar suele ser el mismo secuencial
+    codigo_num := LPAD(secuencial, 8, '0'); 
+    
+    clave_48 := to_char(fecha, 'DDMMYYYY') || 
+                tipo_comp || 
+                ruc_empresa || 
+                ambiente || 
+                serie || 
+                LPAD(secuencial, 9, '0') || 
+                codigo_num || 
+                tipo_emision;
+                
+    RETURN clave_48 || calcular_digito_verificador(clave_48);
+END;
+$$ LANGUAGE plpgsql;
+
+-- 3. Trigger Function: El "Vigilante" que une todo antes de guardar
+CREATE OR REPLACE FUNCTION trg_logica_antes_insertar_comprobante()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_ruc VARCHAR;
+    v_tipo_comp VARCHAR;
+BEGIN
+    -- 1. Obtener datos necesarios de las tablas maestras
+    SELECT ruc INTO v_ruc FROM empresa WHERE id = NEW.empresa_id;
+    SELECT codigo_sri INTO v_tipo_comp FROM tipo_comprobante WHERE id = NEW.tipo_comprobante_id;
+
+    -- 2. Generar la Clave de Acceso automáticamente
+    NEW.clave_acceso := generar_clave_acceso_sri(
+        NEW.fecha_emision,
+        v_tipo_comp,
+        v_ruc,
+        CAST(NEW.ambiente_id AS VARCHAR),
+        NEW.establecimiento_cod_snapshot || NEW.punto_emision_cod_snapshot,
+        NEW.secuencial,
+        CAST(NEW.emision_id AS VARCHAR)
+    );
+    
+    -- 3. Otras lógicas automáticas (opcional)
+    -- Por ejemplo, asegurar que el estado inicial sea siempre CREADO
+    IF NEW.estado IS NULL THEN
+        NEW.estado := 'CREADO';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 4. Crear el Trigger en la tabla comprobante
+DROP TRIGGER IF EXISTS trg_comprobante_auto_clave ON comprobante;
+CREATE TRIGGER trg_comprobante_auto_clave
+    BEFORE INSERT ON comprobante
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_logica_antes_insertar_comprobante();
